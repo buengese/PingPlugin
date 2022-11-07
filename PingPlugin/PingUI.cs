@@ -24,6 +24,7 @@ namespace PingPlugin
         private readonly Func<PingTrackerKind, PingTracker> requestPingTracker;
         
         private PingTracker pingTracker;
+        private GatewayPingTracker gatewayPingTracker;
 
         private bool resettingGraphPos;
         private bool resettingMonitorPos;
@@ -40,11 +41,12 @@ namespace PingPlugin
             set => this.configVisible = value;
         }
 
-        public PingUI(PingTracker pingTracker, DalamudPluginInterface pluginInterface, DtrBar dtrBar, PingConfiguration config, Func<PingTrackerKind, PingTracker> requestPingTracker)
+        public PingUI(PingTracker pingTracker, GatewayPingTracker gatewayPingTracker, DalamudPluginInterface pluginInterface, DtrBar dtrBar, PingConfiguration config, Func<PingTrackerKind, PingTracker> requestPingTracker)
         {
             this.config = config;
             this.uiBuilder = pluginInterface.UiBuilder;
             this.pingTracker = pingTracker;
+            this.gatewayPingTracker = gatewayPingTracker;
             this.pluginInterface = pluginInterface;
 
             this.requestPingTracker = requestPingTracker;
@@ -329,6 +331,7 @@ namespace PingPlugin
             {
                 formatString = Loc.Localize("UIRegularDisplay" + (this.config.HideAveragePing ? "NoAverage" : ""), string.Empty);
                 formatParameters.Add(this.pingTracker.SeAddress);
+                formatParameters.Add(this.gatewayPingTracker.GatewayAddress);
                 formatParameters.Add(this.pingTracker.LastRTT);
             }
 
@@ -359,7 +362,7 @@ namespace PingPlugin
             ImGui.TextColored(this.config.MonitorFontColor, text);
         }
 
-        public void UpdateDtrBarPing(PingStatsPayload payload)
+        public void UpdateDtrBarGamePing(PingStatsPayload payload)
         {
             if (this.dtrEntry is not { Shown: true }) return;
 

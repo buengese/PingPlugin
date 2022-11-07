@@ -8,13 +8,13 @@ namespace PingPlugin.GameAddressDetectors
     public class AggregateAddressDetector : GameAddressDetector
     {
         private bool ipHlpDidError;
-        private readonly IpHlpApiAddressDetector ipHlpApiDetector;
-        private readonly ClientStateAddressDetector clientStateDetector;
+        private readonly IpHlpApiAddressDetector ipHlpApiAddressDetector;
+        private readonly ClientStateAddressDetector clientStateAddressDetector;
 
         public AggregateAddressDetector(ClientState clientState)
         {
-            this.ipHlpApiDetector = new IpHlpApiAddressDetector();
-            this.clientStateDetector = new ClientStateAddressDetector(clientState);
+            this.ipHlpApiAddressDetector = new IpHlpApiAddressDetector();
+            this.clientStateAddressDetector = new ClientStateAddressDetector(clientState);
         }
 
         public override IPAddress GetAddress(bool verbose = false)
@@ -22,12 +22,12 @@ namespace PingPlugin.GameAddressDetectors
             var address = IPAddress.Loopback;
 
             // Try to read the server address from the TCP table
-            GameAddressDetector bestDetector = this.ipHlpApiDetector;
+            GameAddressDetector bestDetector = this.ipHlpApiAddressDetector;
             if (!this.ipHlpDidError)
             {
                 try
                 {
-                    address = this.ipHlpApiDetector.GetAddress(verbose);
+                    address = this.ipHlpApiAddressDetector.GetAddress(verbose);
                 }
                 catch (Exception e)
                 {
@@ -39,10 +39,10 @@ namespace PingPlugin.GameAddressDetectors
             if (Equals(address, IPAddress.Loopback))
             {
                 // That didn't work, fall back to the client state address detector
-                bestDetector = this.clientStateDetector;
+                bestDetector = this.clientStateAddressDetector;
                 try
                 {
-                    address = this.clientStateDetector.GetAddress(verbose);
+                    address = this.clientStateAddressDetector.GetAddress(verbose);
                 }
                 catch (Exception e)
                 {

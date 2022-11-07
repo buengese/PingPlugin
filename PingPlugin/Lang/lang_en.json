@@ -136,11 +136,11 @@
     "description": "PingPlugin.UIText"
   },
   "UIRegularDisplay": {
-    "message": "Connected to: {0}\nPing: {1}ms\nAverage ping: {2}ms",
+    "message": "Connected to: {0}\nPing: {1}ms\nGateway Addr: {2}\nAverage ping: {3}ms",
     "description": "PingPlugin.UIText"
   },
   "UIRegularDisplayNoAverage": {
-    "message": "Connected to: {0}\nPing: {1}ms",
+    "message": "Connected to: {0}\nGateway Addr: {1}\nPing: {2}ms",
     "description": "PingPlugin.UIText"
   }
 }

@@ -7,5 +7,10 @@ namespace PingPlugin.GameAddressDetectors
         protected IPAddress Address { get; set; }
 
         public abstract IPAddress GetAddress(bool verbose = false);
+
+        public void Dispose()
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }

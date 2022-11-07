@@ -20,12 +20,14 @@ namespace PingPlugin
         private readonly PluginCommandManager<PingPlugin> pluginCommandManager;
         private readonly PingConfiguration config;
 
-        private readonly GameAddressDetector addressDetector;
+        private readonly GameAddressDetector gameAddressDetector;
+        private readonly GatewayAddressDetector gatewayAddressDetector;
         private readonly PingUI ui;
-        
-        private PingTracker pingTracker;
 
-        internal ICallGateProvider<object, object> IpcProvider;
+        private PingTracker gamePingTracker;
+        private readonly GatewayPingTracker gatewayPingTracker;
+
+        private ICallGateProvider<object, object> ipcProvider;
 
         public string Name => "PingPlugin";
 
@@ -37,22 +39,28 @@ namespace PingPlugin
             this.config = (PingConfiguration)this.pluginInterface.GetPluginConfig() ?? new PingConfiguration();
             this.config.Initialize(this.pluginInterface);
 
-            this.addressDetector = this.pluginInterface.Create<AggregateAddressDetector>();
-            if (this.addressDetector == null)
+            this.gameAddressDetector = this.pluginInterface.Create<AggregateAddressDetector>();
+            if (this.gameAddressDetector == null)
             {
                 throw new InvalidOperationException("Failed to create game address detector. The provided arguments may be incorrect.");
             }
+
+            this.gatewayAddressDetector = new();
             
-            this.pingTracker = RequestNewPingTracker(this.config.TrackingMode);
-            this.pingTracker.Verbose = false;
-            this.pingTracker.Start();
+            this.gamePingTracker = RequestNewPingTracker(this.config.TrackingMode);
+            this.gamePingTracker.Verbose = false;
+            this.gamePingTracker.Start();
+
+            this.gatewayPingTracker = new GatewayPingTracker(this.config, this.gatewayAddressDetector, this.gameAddressDetector);
+            this.gatewayPingTracker.Verbose = false;
+            this.gatewayPingTracker.Start();
 
             InitIpc();
 
             // Most of these can't be created using service injection because the service container only checks ctors for
             // exact types.
-            this.ui = new PingUI(this.pingTracker, this.pluginInterface, dtrBar, this.config, RequestNewPingTracker);
-            this.pingTracker.OnPingUpdated += this.ui.UpdateDtrBarPing;
+            this.ui = new PingUI(this.gamePingTracker, this.gatewayPingTracker, this.pluginInterface, dtrBar, this.config, RequestNewPingTracker);
+            this.gamePingTracker.OnPingUpdated += this.ui.UpdateDtrBarGamePing;
 
             this.pluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
             this.pluginInterface.UiBuilder.Draw += this.ui.Draw;
@@ -62,24 +70,24 @@ namespace PingPlugin
 
         private PingTracker RequestNewPingTracker(PingTrackerKind kind)
         {
-            this.pingTracker?.Dispose();
+            this.gamePingTracker?.Dispose();
             
             PingTracker newTracker = kind switch
             {
-                PingTrackerKind.Aggregate => new AggregatePingTracker(this.config, this.addressDetector, this.network),
-                PingTrackerKind.COM => new ComponentModelPingTracker(this.config, this.addressDetector),
-                PingTrackerKind.IpHlpApi => new IpHlpApiPingTracker(this.config, this.addressDetector),
-                PingTrackerKind.Packets => new PacketPingTracker(this.config, this.addressDetector, this.network),
+                PingTrackerKind.Aggregate => new AggregatePingTracker(this.config, this.gameAddressDetector, this.network),
+                PingTrackerKind.COM => new ComponentModelPingTracker(this.config, this.gameAddressDetector),
+                PingTrackerKind.IpHlpApi => new IpHlpApiPingTracker(this.config, this.gameAddressDetector),
+                PingTrackerKind.Packets => new PacketPingTracker(this.config, this.gameAddressDetector, this.network),
                 _ => throw new ArgumentOutOfRangeException(nameof(kind)),
             };
 
-            this.pingTracker = newTracker;
-            if (this.pingTracker == null)
+            this.gamePingTracker = newTracker;
+            if (this.gamePingTracker == null)
             {
                 throw new InvalidOperationException($"Failed to create ping tracker \"{kind}\". The provided arguments may be incorrect.");
             }
             
-            this.pingTracker.Start();
+            this.gamePingTracker.Start();
             
             return newTracker;
         }
@@ -88,13 +96,13 @@ namespace PingPlugin
         {
             try
             {
-                IpcProvider = this.pluginInterface.GetIpcProvider<object, object>("PingPlugin.Ipc");
-                this.pingTracker.OnPingUpdated += payload =>
+                ipcProvider = this.pluginInterface.GetIpcProvider<object, object>("PingPlugin.Ipc");
+                this.gamePingTracker.OnPingUpdated += payload =>
                 {
                     dynamic obj = new ExpandoObject();
                     obj.LastRTT = payload.LastRTT;
                     obj.AverageRTT = payload.AverageRTT;
-                    IpcProvider.SendMessage(obj);
+                    ipcProvider.SendMessage(obj);
                 };
             }
             catch (Exception e)
@@ -145,10 +153,11 @@ namespace PingPlugin
 
             this.config.Save();
 
-            this.pingTracker.OnPingUpdated -= this.ui.UpdateDtrBarPing;
+            this.gamePingTracker.OnPingUpdated -= this.ui.UpdateDtrBarGamePing;
             this.ui.Dispose();
 
-            this.pingTracker.Dispose();
+            this.gatewayPingTracker.Dispose();
+            this.gamePingTracker.Dispose();
         }
 
         public void Dispose()
